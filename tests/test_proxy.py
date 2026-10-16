@@ -65,6 +65,7 @@ class ProxyTest(unittest.TestCase):
         FixtureUpstream.status = 200
         FixtureUpstream.content_type = "application/json"
         FixtureUpstream.payload = b'{"object":"chat.completion","choices":[]}'
+        ProxyHandler.forward_auth = False
 
     def send(self, path: str, payload: dict | None = None, headers: dict | None = None) -> tuple[int, bytes, dict]:
         request = urllib.request.Request(
@@ -146,7 +147,14 @@ class ProxyTest(unittest.TestCase):
         self.assertEqual(body, FixtureUpstream.payload)
         self.assertEqual(FixtureUpstream.received[0]["path"], "/v1/models")
 
-    def test_client_authorization_forwarded_when_present(self) -> None:
+    def test_client_authorization_dropped_by_default(self) -> None:
+        # Upstream 401s on any unrecognized credential, so keys must not leak through.
+        self.send("/v1/chat/completions", {"model": "m"}, headers={**JSON_HEADERS, "authorization": "Bearer client-key"})
+        headers = {name.lower(): value for name, value in FixtureUpstream.received[0]["headers"].items()}
+        self.assertNotIn("authorization", headers)
+
+    def test_client_authorization_forwarded_with_flag(self) -> None:
+        ProxyHandler.forward_auth = True
         self.send("/v1/chat/completions", {"model": "m"}, headers={**JSON_HEADERS, "authorization": "Bearer key"})
         headers = {name.lower(): value for name, value in FixtureUpstream.received[0]["headers"].items()}
         self.assertEqual(headers["authorization"], "Bearer key")

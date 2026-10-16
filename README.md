@@ -27,9 +27,13 @@ Every request to the free tier is checked for four things. All of them are requi
 | 4 | `body.stream` is `true` — the free tier answers SSE only | forced on every request; non-streaming clients get their JSON aggregated back |
 
 Verified **not** part of the gate: TLS/HTTP fingerprint (works from curl, python, node,
-bun), client IP (a separate per-model `RegionError` exists), the other `x-opencode-*`
-headers (`client`, `project`, `request`), and authentication — no `Authorization`
-header is needed at all (the harness itself sends `Bearer public`).
+bun), client IP (a separate per-model `RegionError` exists), and the other
+`x-opencode-*` headers (`client`, `project`, `request`). Authentication is not part of
+the gate either — *no* `Authorization` header is what the harness effectively sends
+(`Bearer public` is treated as anonymous). But any other credential value is a hard
+`401 {"message":"Upstream request failed: Invalid credential"}`, so the proxy **drops
+the client's `Authorization` header by default**; pass `--forward-auth` to send a real
+key through.
 
 The session-id encoding mirrors opencode's `Identifier.create(descending=True)` in
 `packages/schema/src/identifier.ts`: `~(ms * 0x1000 + counter)` masked to 48 bits,
@@ -59,7 +63,7 @@ Then configure your harness with an OpenAI-compatible provider:
 | setting  | value |
 |----------|-------|
 | base URL | `http://127.0.0.1:8901/v1` |
-| API key  | *(anything or nothing — auth is not checked)* |
+| API key  | any placeholder — the proxy drops it and stays keyless upstream |
 | models   | `GET /v1/models` lists them; free ones include `big-pickle`, `glm-4.7-free`, `kimi-k2.5-free`, `deepseek-v4.1-flash-free`, … |
 
 Example with `curl`:

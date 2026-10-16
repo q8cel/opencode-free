@@ -24,6 +24,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
     server_version = f"opencode-free/{__version__}"
     upstream = UPSTREAM
     user_agent = USER_AGENT
+    forward_auth = False
     timeout = 300
 
     def do_OPTIONS(self) -> None:
@@ -71,8 +72,12 @@ class ProxyHandler(BaseHTTPRequestHandler):
         payload, wants_stream = prepare_payload(body)
         headers = {"content-type": self.headers.get("Content-Type", JSON_TYPE), **request_headers(self.user_agent)}
         authorization = self.headers.get("Authorization")
-        if authorization:
+        if authorization and self.forward_auth:
             headers["authorization"] = authorization
+        if authorization and not self.forward_auth:
+            # An unrecognized credential is a hard 401 upstream, while no credential
+            # at all is free-tier anonymous, so client keys are dropped by default.
+            print("dropping client Authorization: upstream stays keyless", file=sys.stderr)
         request = urllib.request.Request(
             self.upstream + path,
             data=payload or None,
@@ -210,6 +215,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--port", type=int, default=8901, help="port to listen on (default: 8901)")
     parser.add_argument("--upstream", default=UPSTREAM, help=f"inference base URL (default: {UPSTREAM})")
     parser.add_argument("--user-agent", default=USER_AGENT, help="User-Agent sent upstream")
+    parser.add_argument(
+        "--forward-auth",
+        action="store_true",
+        help="pass the client's Authorization header upstream (default: drop it and use the keyless free tier)",
+    )
     parser.add_argument("--check", action="store_true", help="verify the free tier accepts a forged request, then exit")
     args = parser.parse_args(argv)
 
@@ -218,6 +228,7 @@ def main(argv: list[str] | None = None) -> int:
 
     ProxyHandler.upstream = args.upstream
     ProxyHandler.user_agent = args.user_agent
+    ProxyHandler.forward_auth = args.forward_auth
     server = ThreadingHTTPServer((args.host, args.port), ProxyHandler)
     print(f"opencode-free {__version__}: http://{args.host}:{args.port}/v1 -> {args.upstream}", flush=True)
     try:
