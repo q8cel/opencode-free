@@ -1,0 +1,22 @@
+[project]
+name = "opencode-free"
+version = "0.1.0"
+description = "Use OpenCode's free-tier models from any OpenAI-compatible harness via a small local proxy"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+dependencies = []
+keywords = ["opencode", "llm", "proxy", "openai-compatible"]
+
+[project.scripts]
+opencode-free = "opencode_free.proxy:main"
+
+[project.urls]
+Homepage = "https://github.com/serhioromano/opencode-free"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["opencode_free"]
